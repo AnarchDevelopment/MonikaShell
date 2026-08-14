@@ -4,10 +4,10 @@ A beautiful, web-based SSH terminal and server management dashboard.
 
 ## Installation
 
-You can install MonikaShell using the provided automated installer script:
+You can install MonikaShell instantly by running this one-liner in your terminal:
 
 ```bash
-bash installer.sh
+curl -sSf https://raw.githubusercontent.com/AnarchDevelopment/MonikaShell/refs/heads/main/installer.sh | bash
 ```
 
 ## Manual Setup
