@@ -1,0 +1,73 @@
+const Database = require('better-sqlite3');
+const bcrypt = require('bcrypt');
+const path = require('path');
+const fs = require('fs');
+
+const dbPath = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(dbPath)) {
+  fs.mkdirSync(dbPath, { recursive: true });
+}
+
+const db = new Database(path.join(dbPath, 'monikashell.db'));
+
+function initDb() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uuid TEXT UNIQUE,
+      username TEXT UNIQUE,
+      password_hash TEXT,
+      is_admin INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS servers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uuid TEXT UNIQUE,
+      name TEXT,
+      type TEXT,
+      host TEXT,
+      port INTEGER,
+      username TEXT,
+      password TEXT,
+      os TEXT,
+      owner_id INTEGER,
+      FOREIGN KEY(owner_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      sid TEXT PRIMARY KEY,
+      sess TEXT NOT NULL,
+      expire INTEGER NOT NULL
+    );
+  `);
+
+  // Clean up any expired sessions at startup
+  db.prepare('DELETE FROM sessions WHERE expire <= ?').run(Date.now());
+
+  // Migration: remove the unused email column (from the gravatar experiment)
+  const userCols = db.prepare('PRAGMA table_info(users)').all();
+  if (userCols.some(c => c.name === 'email')) {
+    try {
+      db.exec('ALTER TABLE users DROP COLUMN email');
+    } catch (e) {
+      // Column drop may be unsupported on older SQLite; leave it unused
+    }
+  }
+
+  // Create default admin if not exists
+  const admin = db.prepare('SELECT * FROM users WHERE username = ?').get('admin');
+  if (!admin) {
+    const hash = bcrypt.hashSync('admin', 10);
+    db.prepare('INSERT INTO users (uuid, username, password_hash, is_admin) VALUES (?, ?, ?, ?)').run(
+      'default-admin-uuid', 'admin', hash, 1
+    );
+    console.log('Default admin created with username: admin, password: admin');
+  }
+
+  // Remove the legacy mock 'Test Server' demo seed from any existing database
+  db.prepare('DELETE FROM servers WHERE name = ?').run('Test Server');
+}
+
+initDb();
+
+module.exports = db;
