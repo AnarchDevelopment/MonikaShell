@@ -5,6 +5,10 @@
 
 set -e
 
+# When piped via curl | bash, stdin is the script itself.
+# We reconnect stdin to the terminal to allow interactive prompts.
+exec < /dev/tty
+
 REPO_URL="https://github.com/AnarchDevelopment/MonikaShell.git"
 
 echo "========================================"
