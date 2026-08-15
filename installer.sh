@@ -92,20 +92,47 @@ echo " Proceeding with installation..."
 echo "========================================"
 echo ""
 
-# Install dependencies and clone
-if ! command -v git &> /dev/null; then
-    echo "git is required but not installed. Please install git."
-    exit 1
+# Install dependencies
+SUDO=""
+if [ "$CURRENT_USER" != "root" ]; then
+    if ! command -v sudo &> /dev/null; then
+        echo "sudo is not installed. We need root privileges to install dependencies."
+        exit 1
+    fi
+    SUDO="sudo"
 fi
 
-if ! command -v node &> /dev/null; then
-    echo "Node.js is required but not installed. Please install Node.js >= 18."
-    exit 1
-fi
+install_deps() {
+    echo "Installing required dependencies (git, nodejs)..."
+    if command -v apt-get &> /dev/null; then
+        $SUDO apt-get update
+        if ! command -v curl &> /dev/null; then
+            $SUDO apt-get install -y curl
+        fi
+        curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO -E bash -
+        $SUDO apt-get install -y nodejs git
+    elif command -v dnf &> /dev/null; then
+        if ! command -v curl &> /dev/null; then
+            $SUDO dnf install -y curl
+        fi
+        curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash -
+        $SUDO dnf install -y nodejs git
+    elif command -v yum &> /dev/null; then
+        if ! command -v curl &> /dev/null; then
+            $SUDO yum install -y curl
+        fi
+        curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash -
+        $SUDO yum install -y nodejs git
+    elif command -v pacman &> /dev/null; then
+        $SUDO pacman -Sy --noconfirm nodejs npm git curl
+    else
+        echo "Could not detect package manager. Please install Node.js >= 18 and Git manually."
+        exit 1
+    fi
+}
 
-if ! command -v npm &> /dev/null; then
-    echo "npm is required but not installed. Please install npm."
-    exit 1
+if ! command -v git &> /dev/null || ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+    install_deps
 fi
 
 if [ -d "$INSTALL_DIR" ]; then
@@ -162,10 +189,10 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 EOF
 
-    sudo mv $SERVICE_FILE /etc/systemd/system/monikashell.service
-    sudo systemctl daemon-reload
-    sudo systemctl enable monikashell
-    sudo systemctl start monikashell
+    $SUDO mv $SERVICE_FILE /etc/systemd/system/monikashell.service
+    $SUDO systemctl daemon-reload
+    $SUDO systemctl enable monikashell
+    $SUDO systemctl start monikashell
     echo "Service $SERVICE_NAME started."
 fi
 
