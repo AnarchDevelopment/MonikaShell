@@ -149,6 +149,17 @@ cd frontend
 npm install --production=false
 # We would typically run 'npm run build' here for production, but the dev server is fine for now
 
+echo "Installing build tools (required for native modules)..."
+if command -v apt-get &> /dev/null; then
+    $SUDO apt-get install -y build-essential python3-dev
+elif command -v dnf &> /dev/null; then
+    $SUDO dnf install -y gcc-c++ make python3-devel
+elif command -v yum &> /dev/null; then
+    $SUDO yum install -y gcc-c++ make python3-devel
+elif command -v pacman &> /dev/null; then
+    $SUDO pacman -Sy --noconfirm base-devel python
+fi
+
 echo "Installing backend dependencies..."
 cd ../backend
 npm install
