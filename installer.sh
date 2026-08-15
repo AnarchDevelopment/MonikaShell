@@ -152,6 +152,8 @@ npm install --production=false
 echo "Installing backend dependencies..."
 cd ../backend
 npm install
+# Force rebuild of native modules (like better-sqlite3) to prevent segfaults
+npm rebuild
 
 # Setup env for backend
 cat << EOF > .env
