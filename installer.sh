@@ -183,7 +183,7 @@ After=network.target
 Type=simple
 User=$CURRENT_USER
 WorkingDirectory=$INSTALL_DIR/backend
-ExecStart=$(command -v node) index.js
+ExecStart=/bin/bash -lc 'node index.js'
 Restart=on-failure
 Environment=NODE_ENV=production
 
