@@ -1,7 +1,7 @@
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const session = require('express-session');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const http = require('http');
 const path = require('path');

@@ -69,8 +69,8 @@ read -p "Create a systemd service for the server to run on boot? [y/N]: " SYSTEM
 read -p "App name? [MonikaShell]: " APP_NAME < /dev/tty
 APP_NAME=${APP_NAME:-MonikaShell}
 
-read -p "Site URL [http://localhost:$API_PORT]: " SITE_URL < /dev/tty
-SITE_URL=${SITE_URL:-http://localhost:$API_PORT}
+read -p "Site URL (e.g., https://shell.example.com) [http://localhost]: " SITE_URL < /dev/tty
+SITE_URL=${SITE_URL:-http://localhost}
 
 read -p "Site description [My remote terminal panel]: " SITE_DESC < /dev/tty
 SITE_DESC=${SITE_DESC:-My remote terminal panel}
