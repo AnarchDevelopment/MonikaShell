@@ -102,38 +102,61 @@ if [ "$CURRENT_USER" != "root" ]; then
     SUDO="sudo"
 fi
 
+# MonikaShell requires Node.js >= 22 (better-sqlite3 v13).
+REQUIRED_NODE_MAJOR=22
+
+node_major_version() {
+    if ! command -v node &> /dev/null; then
+        echo 0
+        return 1
+    fi
+    node -p "process.versions.node.split('.')[0]"
+}
+
+node_compatible() {
+    local major
+    major=$(node_major_version) || return 1
+    [ "$major" -ge "$REQUIRED_NODE_MAJOR" ]
+}
+
 install_deps() {
-    echo "Installing required dependencies (git, nodejs)..."
+    echo "Installing required dependencies (git, nodejs >= $REQUIRED_NODE_MAJOR)..."
     if command -v apt-get &> /dev/null; then
         $SUDO apt-get update
         if ! command -v curl &> /dev/null; then
             $SUDO apt-get install -y curl
         fi
-        curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO -E bash -
+        curl -fsSL https://deb.nodesource.com/setup_22.x | $SUDO -E bash -
         $SUDO apt-get install -y nodejs git build-essential python3-dev
     elif command -v dnf &> /dev/null; then
         if ! command -v curl &> /dev/null; then
             $SUDO dnf install -y curl
         fi
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash -
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | $SUDO bash -
         $SUDO dnf install -y nodejs git gcc-c++ make python3-devel
     elif command -v yum &> /dev/null; then
         if ! command -v curl &> /dev/null; then
             $SUDO yum install -y curl
         fi
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash -
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | $SUDO bash -
         $SUDO yum install -y nodejs git gcc-c++ make python3-devel
     elif command -v pacman &> /dev/null; then
         $SUDO pacman -Sy --noconfirm nodejs npm git curl base-devel python
     else
-        echo "Could not detect package manager. Please install Node.js >= 18 and Git manually."
+        echo "Could not detect package manager. Please install Node.js >= $REQUIRED_NODE_MAJOR and Git manually."
         exit 1
     fi
 }
 
-if ! command -v git &> /dev/null || ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+if ! command -v git &> /dev/null || ! command -v npm &> /dev/null || ! node_compatible; then
     install_deps
 fi
+
+if ! node_compatible; then
+    echo "ERROR: MonikaShell requires Node.js >= $REQUIRED_NODE_MAJOR, but the system has $(command -v node &> /dev/null && node -v || echo 'no Node.js')."
+    exit 1
+fi
+echo "Using Node.js $(node -v) (required >= $REQUIRED_NODE_MAJOR)."
 
 if [ -d "$INSTALL_DIR" ]; then
     echo "Directory $INSTALL_DIR already exists. Assuming update..."
@@ -163,6 +186,9 @@ fi
 echo "Installing backend dependencies..."
 cd ../backend
 npm install
+# Rebuild native modules (e.g. better-sqlite3) for the current Node ABI.
+# Required when Node.js was just upgraded so old binaries don't crash at runtime.
+npm rebuild 2>/dev/null || true
 
 # Setup env for backend
 cat << EOF > .env
