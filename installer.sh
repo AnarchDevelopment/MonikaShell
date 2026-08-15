@@ -6,9 +6,7 @@
 set -e
 
 # When piped via curl | bash, stdin is the script itself.
-# We reconnect stdin to the terminal to allow interactive prompts.
-exec < /dev/tty
-
+# We append < /dev/tty to read commands to allow interactive prompts.
 REPO_URL="https://github.com/AnarchDevelopment/MonikaShell.git"
 
 echo "========================================"
@@ -23,7 +21,7 @@ DEFAULT_DIR="/home/$CURRENT_USER/MonikaShell"
 if [ "$CURRENT_USER" = "root" ]; then
     DEFAULT_DIR="/root/MonikaShell"
     echo "WARNING: Installing under /root is NOT recommended."
-    read -p "Are you sure you want to proceed as root? [y/N]: " root_confirm
+    read -p "Are you sure you want to proceed as root? [y/N]: " root_confirm < /dev/tty
     case "$root_confirm" in
         [yY][eE][sS]|[yY]) 
             ;;
@@ -35,12 +33,12 @@ if [ "$CURRENT_USER" = "root" ]; then
 fi
 
 # 2. First Admin
-read -p "Set a username for your first admin user [admin]: " ADMIN_USER
+read -p "Set a username for your first admin user [admin]: " ADMIN_USER < /dev/tty
 ADMIN_USER=${ADMIN_USER:-admin}
 
 # Hide password input
 prompt="Set a password for your first admin user: "
-while IFS= read -p "$prompt" -r -s -n 1 char; do
+while IFS= read -p "$prompt" -r -s -n 1 char < /dev/tty; do
     if [[ $char == $'\0' ]]; then
         break
     fi
@@ -50,7 +48,7 @@ done
 echo ""
 
 # 3. Installation Directory
-read -p "Server will be installed to [$DEFAULT_DIR]. Proceed? [Y/n/custom_path]: " DIR_CONFIRM
+read -p "Server will be installed to [$DEFAULT_DIR]. Proceed? [Y/n/custom_path]: " DIR_CONFIRM < /dev/tty
 if [[ "$DIR_CONFIRM" =~ ^[nN] ]]; then
     echo "Installation aborted."
     exit 1
@@ -61,30 +59,30 @@ else
 fi
 
 # 4. Port Configuration
-read -p "Which port should the backend API run on? [8080]: " API_PORT
+read -p "Which port should the backend API run on? [8080]: " API_PORT < /dev/tty
 API_PORT=${API_PORT:-8080}
 
 # 5. Systemd Service
-read -p "Create a systemd service for the server to run on boot? [y/N]: " SYSTEMD_CONFIRM
+read -p "Create a systemd service for the server to run on boot? [y/N]: " SYSTEMD_CONFIRM < /dev/tty
 
 # 6. Site Configuration
-read -p "App name? [MonikaShell]: " APP_NAME
+read -p "App name? [MonikaShell]: " APP_NAME < /dev/tty
 APP_NAME=${APP_NAME:-MonikaShell}
 
-read -p "Site URL [http://localhost:$API_PORT]: " SITE_URL
+read -p "Site URL [http://localhost:$API_PORT]: " SITE_URL < /dev/tty
 SITE_URL=${SITE_URL:-http://localhost:$API_PORT}
 
-read -p "Site description [My remote terminal panel]: " SITE_DESC
+read -p "Site description [My remote terminal panel]: " SITE_DESC < /dev/tty
 SITE_DESC=${SITE_DESC:-My remote terminal panel}
 
 # 7. Stop After Required Setup
-read -p "Basic installation is complete. Would you like to configure appearance settings now? [Y/n]: " APP_CONFIRM
+read -p "Basic installation is complete. Would you like to configure appearance settings now? [Y/n]: " APP_CONFIRM < /dev/tty
 THEME="Dark"
 BORDER="8px"
 if [[ ! "$APP_CONFIRM" =~ ^[nN] ]]; then
-    read -p "What is the desired default theme for the app? [Light/Dark]: " THEME
+    read -p "What is the desired default theme for the app? [Light/Dark]: " THEME < /dev/tty
     THEME=${THEME:-Dark}
-    read -p "What is the desired Border Radius for the app? (use 'px' or 'rem') [8px]: " BORDER
+    read -p "What is the desired Border Radius for the app? (use 'px' or 'rem') [8px]: " BORDER < /dev/tty
     BORDER=${BORDER:-8px}
 fi
 
