@@ -110,21 +110,21 @@ install_deps() {
             $SUDO apt-get install -y curl
         fi
         curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO -E bash -
-        $SUDO apt-get install -y nodejs git
+        $SUDO apt-get install -y nodejs git build-essential python3-dev
     elif command -v dnf &> /dev/null; then
         if ! command -v curl &> /dev/null; then
             $SUDO dnf install -y curl
         fi
         curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash -
-        $SUDO dnf install -y nodejs git
+        $SUDO dnf install -y nodejs git gcc-c++ make python3-devel
     elif command -v yum &> /dev/null; then
         if ! command -v curl &> /dev/null; then
             $SUDO yum install -y curl
         fi
         curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash -
-        $SUDO yum install -y nodejs git
+        $SUDO yum install -y nodejs git gcc-c++ make python3-devel
     elif command -v pacman &> /dev/null; then
-        $SUDO pacman -Sy --noconfirm nodejs npm git curl
+        $SUDO pacman -Sy --noconfirm nodejs npm git curl base-devel python
     else
         echo "Could not detect package manager. Please install Node.js >= 18 and Git manually."
         exit 1
@@ -152,8 +152,6 @@ npm install --production=false
 echo "Installing backend dependencies..."
 cd ../backend
 npm install
-# Force rebuild of native modules (like better-sqlite3) to prevent segfaults
-npm rebuild
 
 # Setup env for backend
 cat << EOF > .env
