@@ -6,11 +6,13 @@ import TerminalPage from './pages/TerminalPage';
 import AdminUsers from './pages/AdminUsers';
 import AdminServers from './pages/AdminServers';
 import Layout from './components/Layout';
+import TitleManager from './components/TitleManager';
 import './index.css';
 
 function App() {
   return (
     <Router>
+      <TitleManager />
       <Routes>
         <Route path="/login" element={<Login />} />
         

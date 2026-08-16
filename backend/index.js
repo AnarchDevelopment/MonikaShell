@@ -43,6 +43,18 @@ const sessionParser = session({
 app.use(sessionParser);
 
 // API Routes
+
+// Public app config (from .env)
+app.get('/api/config', (req, res) => {
+  res.json({
+    appName: process.env.APP_NAME || 'MonikaShell',
+    siteUrl: process.env.SITE_URL || '',
+    siteDesc: process.env.SITE_DESC || '',
+    theme: process.env.THEME || 'Dark',
+    borderRadius: process.env.BORDER_RADIUS || '8px'
+  });
+});
+
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
