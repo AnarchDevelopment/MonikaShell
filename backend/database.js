@@ -2,6 +2,7 @@ const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
+const { randomUUID } = require('crypto');
 
 const dbPath = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dbPath)) {
@@ -65,7 +66,7 @@ function initDb() {
       console.log(`Admin user "${adminUser}" updated from .env`);
     } else {
       db.prepare('INSERT INTO users (uuid, username, password_hash, is_admin) VALUES (?, ?, ?, ?)').run(
-        'default-admin-uuid', adminUser, hash, 1
+        randomUUID(), adminUser, hash, 1
       );
       console.log(`Admin user "${adminUser}" created from .env`);
     }
@@ -74,7 +75,7 @@ function initDb() {
     if (!admin) {
       const hash = bcrypt.hashSync('admin', 10);
       db.prepare('INSERT INTO users (uuid, username, password_hash, is_admin) VALUES (?, ?, ?, ?)').run(
-        'default-admin-uuid', 'admin', hash, 1
+        randomUUID(), 'admin', hash, 1
       );
       console.log('Default admin created with username: admin, password: admin');
     }
