@@ -35,6 +35,14 @@ function initDb() {
       FOREIGN KEY(owner_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS server_access (
+      server_uuid TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      PRIMARY KEY (server_uuid, user_id),
+      FOREIGN KEY(server_uuid) REFERENCES servers(uuid),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       sid TEXT PRIMARY KEY,
       sess TEXT NOT NULL,

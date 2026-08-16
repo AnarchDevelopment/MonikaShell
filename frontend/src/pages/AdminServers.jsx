@@ -1,27 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
 
-const emptyForm = { name: '', type: 'SSH', host: '', port: 22, username: '', password: '' };
+const emptyForm = { name: '', type: 'SSH', host: '', port: 22, username: '', password: '', users: [] };
 
 export default function AdminServers() {
   const [servers, setServers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [modal, setModal] = useState(null); // null | 'add' | 'edit'
   const [form, setForm] = useState(emptyForm);
   const [editUuid, setEditUuid] = useState(null);
   const [error, setError] = useState('');
 
   const load = () => {
-    fetch('/api/servers', { credentials: 'include' })
-      .then(res => res.ok ? res.json() : Promise.reject(res.status))
-      .then(setServers)
-      .catch(err => console.error('Failed to load servers:', err));
+    Promise.all([
+      fetch('/api/admin/servers', { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/admin/users', { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json()),
+    ])
+      .then(([serverData, usersData, meData]) => {
+        setServers(serverData);
+        setAllUsers(usersData);
+        setCurrentUserId(meData.user && meData.user.id);
+      })
+      .catch(err => console.error('Failed to load data:', err));
   };
 
   useEffect(() => { load(); }, []);
 
-  const openAdd = () => { setForm(emptyForm); setError(''); setModal('add'); };
+  const toggleUser = (id) => {
+    setForm(f => ({
+      ...f,
+      users: f.users.includes(id) ? f.users.filter(u => u !== id) : [...f.users, id],
+    }));
+  };
+
+  const openAdd = () => {
+    setForm({ ...emptyForm, users: currentUserId ? [currentUserId] : [] });
+    setError('');
+    setModal('add');
+  };
   const openEdit = (server) => {
-    setForm({ name: server.name, type: server.type, host: server.host, port: server.port, username: server.username || '', password: '' });
+    setForm({ name: server.name, type: server.type, host: server.host, port: server.port, username: server.username || '', password: '', users: server.users || [] });
     setEditUuid(server.uuid);
     setError('');
     setModal('edit');
@@ -145,6 +165,25 @@ export default function AdminServers() {
                 </label>
                 <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   style={{ width: '100%', padding: '0.65rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'white' }} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', marginBottom: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                  Users with Access
+                  <span style={{ opacity: 0.6, fontSize: '0.8rem' }}> (the owner always has access)</span>
+                </label>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.4rem',
+                  maxHeight: '140px', overflowY: 'auto', padding: '0.75rem', border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--border-radius)', background: 'rgba(0,0,0,0.2)'
+                }}>
+                  {allUsers.map(u => (
+                    <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input type="checkbox" checked={form.users.includes(u.id)} onChange={() => toggleUser(u.id)} />
+                      <span>{u.username}{u.is_admin ? ' (admin)' : ''}</span>
+                    </label>
+                  ))}
+                  {allUsers.length === 0 && <span style={{ color: 'var(--text-secondary)' }}>No users found</span>}
+                </div>
               </div>
             </div>
 

@@ -87,22 +87,27 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
 });
 
 app.get('/api/servers', requireAuth, (req, res) => {
-  // Return all servers for admin, or only owned for normal user
+  // Return all servers for admin, or only owned/granted for normal user
   const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
   let servers;
   if (user.is_admin) {
     servers = db.prepare('SELECT uuid, name, type, host, port, os FROM servers').all();
   } else {
-    servers = db.prepare('SELECT uuid, name, type, host, port, os FROM servers WHERE owner_id = ?').all(req.session.userId);
+    servers = db.prepare('SELECT uuid, name, type, host, port, os FROM servers WHERE owner_id = ? OR uuid IN (SELECT server_uuid FROM server_access WHERE user_id = ?)').all(req.session.userId, req.session.userId);
   }
   res.json(servers);
 });
 
+function canAccessServer(user, server) {
+  if (user.is_admin) return true;
+  if (server.owner_id === user.id) return true;
+  return !!db.prepare('SELECT 1 FROM server_access WHERE server_uuid = ? AND user_id = ?').get(server.uuid, user.id);
+}
+
 app.get('/api/servers/:uuid', requireAuth, (req, res) => {
   const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
   const server = db.prepare('SELECT uuid, name, type, host, port, os, owner_id FROM servers WHERE uuid = ?').get(req.params.uuid);
-  if (!server) return res.status(404).json({ error: 'Server not found' });
-  if (!user.is_admin && server.owner_id !== req.session.userId) return res.status(404).json({ error: 'Server not found' });
+  if (!server || !canAccessServer(user, server)) return res.status(404).json({ error: 'Server not found' });
   const { owner_id, ...publicServer } = server;
   res.json(publicServer);
 });
@@ -110,8 +115,7 @@ app.get('/api/servers/:uuid', requireAuth, (req, res) => {
 app.get('/api/servers/:uuid/history', requireAuth, (req, res) => {
   const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
   const server = db.prepare('SELECT * FROM servers WHERE uuid = ?').get(req.params.uuid);
-  if (!server) return res.status(404).json({ error: 'Server not found' });
-  if (!user.is_admin && server.owner_id !== req.session.userId) return res.status(404).json({ error: 'Server not found' });
+  if (!server || !canAccessServer(user, server)) return res.status(404).json({ error: 'Server not found' });
   if (server.type !== 'SSH') return res.status(400).json({ error: 'Unsupported server type' });
 
   readHistory(server)
@@ -136,8 +140,7 @@ app.get('/api/servers/:uuid/history', requireAuth, (req, res) => {
 app.post('/api/servers/:uuid/sessions/:sessionId/close', requireAuth, (req, res) => {
   const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
   const server = db.prepare('SELECT * FROM servers WHERE uuid = ?').get(req.params.uuid);
-  if (!server) return res.status(404).json({ error: 'Server not found' });
-  if (!user.is_admin && server.owner_id !== req.session.userId) return res.status(404).json({ error: 'Server not found' });
+  if (!server || !canAccessServer(user, server)) return res.status(404).json({ error: 'Server not found' });
   const closed = closeSession(req.params.uuid, req.params.sessionId);
   res.json({ success: true, closed });
 });
@@ -146,7 +149,7 @@ app.post('/api/servers/:uuid/sessions/:sessionId/close', requireAuth, (req, res)
 function ownedServer(req) {
   const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
   const server = db.prepare('SELECT * FROM servers WHERE uuid = ?').get(req.params.uuid);
-  if (!server || (!user.is_admin && server.owner_id !== req.session.userId)) return null;
+  if (!server || !canAccessServer(user, server)) return null;
   return server;
 }
 
@@ -310,11 +313,38 @@ app.delete('/api/admin/users/:id', requireAuth, (req, res) => {
     const adminCount = db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1').get().c;
     if (adminCount <= 1) return res.status(400).json({ error: 'Cannot delete the last administrator' });
   }
+  db.prepare('DELETE FROM server_access WHERE user_id = ?').run(req.params.id);
   db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
 // --- Servers CRUD ---
+function sanitizeUserIds(ids) {
+  if (!Array.isArray(ids)) return [];
+  const set = new Set();
+  for (const id of ids) {
+    if (Number.isInteger(id) && db.prepare('SELECT 1 FROM users WHERE id = ?').get(id)) set.add(id);
+  }
+  return [...set];
+}
+
+app.get('/api/admin/servers', requireAuth, (req, res) => {
+  const actor = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
+  if (!actor.is_admin) return res.status(403).json({ error: 'Forbidden' });
+  const servers = db.prepare('SELECT uuid, name, type, host, port, username, os, owner_id FROM servers').all();
+  res.json(servers.map(s => ({
+    uuid: s.uuid,
+    name: s.name,
+    type: s.type,
+    host: s.host,
+    port: s.port,
+    username: s.username,
+    os: s.os,
+    owner_id: s.owner_id,
+    users: db.prepare('SELECT user_id FROM server_access WHERE server_uuid = ?').all(s.uuid).map(a => a.user_id)
+  })));
+});
+
 app.post('/api/admin/servers', requireAuth, (req, res) => {
   const actor = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
   if (!actor.is_admin) return res.status(403).json({ error: 'Forbidden' });
@@ -326,6 +356,11 @@ app.post('/api/admin/servers', requireAuth, (req, res) => {
   const initialOs = os || 'Linux';
   
   db.prepare('INSERT INTO servers (uuid, name, type, host, port, username, password, os, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(uuid, name, type, host, port, username || '', password || '', initialOs, req.session.userId);
+
+  // Grant access to the creator by default, plus any selected users
+  const grant = new Set([req.session.userId, ...sanitizeUserIds(req.body.users)]);
+  const grantAccess = db.prepare('INSERT OR IGNORE INTO server_access (server_uuid, user_id) VALUES (?, ?)');
+  for (const uid of grant) grantAccess.run(uuid, uid);
   
   // Async OS Detection
   detectOS(serverConfig).then(detectedOs => {
@@ -352,6 +387,12 @@ app.put('/api/admin/servers/:uuid', requireAuth, (req, res) => {
   } else {
     db.prepare('UPDATE servers SET name=?, type=?, host=?, port=?, username=?, os=? WHERE uuid=?').run(name, type, host, port, username, fallbackOs, req.params.uuid);
   }
+
+  // Replace access grants (owner always keeps access)
+  const grant = new Set([server.owner_id, ...sanitizeUserIds(req.body.users)]);
+  db.prepare('DELETE FROM server_access WHERE server_uuid = ?').run(req.params.uuid);
+  const grantAccess = db.prepare('INSERT OR IGNORE INTO server_access (server_uuid, user_id) VALUES (?, ?)');
+  for (const uid of grant) grantAccess.run(req.params.uuid, uid);
   
   // Async OS Detection
   detectOS(serverConfig).then(detectedOs => {
@@ -366,6 +407,7 @@ app.put('/api/admin/servers/:uuid', requireAuth, (req, res) => {
 app.delete('/api/admin/servers/:uuid', requireAuth, (req, res) => {
   const actor = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.userId);
   if (!actor.is_admin) return res.status(403).json({ error: 'Forbidden' });
+  db.prepare('DELETE FROM server_access WHERE server_uuid = ?').run(req.params.uuid);
   db.prepare('DELETE FROM servers WHERE uuid = ?').run(req.params.uuid);
   res.json({ success: true });
 });
