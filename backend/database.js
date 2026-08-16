@@ -54,14 +54,30 @@ function initDb() {
     }
   }
 
-  // Create default admin if not exists
-  const admin = db.prepare('SELECT * FROM users WHERE username = ?').get('admin');
-  if (!admin) {
-    const hash = bcrypt.hashSync('admin', 10);
-    db.prepare('INSERT INTO users (uuid, username, password_hash, is_admin) VALUES (?, ?, ?, ?)').run(
-      'default-admin-uuid', 'admin', hash, 1
-    );
-    console.log('Default admin created with username: admin, password: admin');
+  // Create/update the admin user from .env (ADMIN_USER / ADMIN_PASS), or fall back to a default.
+  const adminUser = process.env.ADMIN_USER;
+  const adminPass = process.env.ADMIN_PASS;
+  if (adminUser && adminPass) {
+    const existing = db.prepare('SELECT * FROM users WHERE username = ?').get(adminUser);
+    const hash = bcrypt.hashSync(adminPass, 10);
+    if (existing) {
+      db.prepare('UPDATE users SET password_hash = ?, is_admin = 1 WHERE username = ?').run(hash, adminUser);
+      console.log(`Admin user "${adminUser}" updated from .env`);
+    } else {
+      db.prepare('INSERT INTO users (uuid, username, password_hash, is_admin) VALUES (?, ?, ?, ?)').run(
+        'default-admin-uuid', adminUser, hash, 1
+      );
+      console.log(`Admin user "${adminUser}" created from .env`);
+    }
+  } else {
+    const admin = db.prepare('SELECT * FROM users WHERE username = ?').get('admin');
+    if (!admin) {
+      const hash = bcrypt.hashSync('admin', 10);
+      db.prepare('INSERT INTO users (uuid, username, password_hash, is_admin) VALUES (?, ?, ?, ?)').run(
+        'default-admin-uuid', 'admin', hash, 1
+      );
+      console.log('Default admin created with username: admin, password: admin');
+    }
   }
 
   // Remove the legacy mock 'Test Server' demo seed from any existing database
