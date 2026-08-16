@@ -42,6 +42,16 @@ export default function Dashboard() {
     navigate('/login');
   };
 
+  const getTabCount = (uuid) => {
+    try {
+      const raw = localStorage.getItem(`monika:terminal:tabs:${uuid}`);
+      const tabs = raw ? JSON.parse(raw) : [];
+      return Array.isArray(tabs) ? tabs.length : 0;
+    } catch {
+      return 0;
+    }
+  };
+
   return (
     <>
       <main className="content-container animate-fade-in">
@@ -57,7 +67,9 @@ export default function Dashboard() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-            {servers.map(server => (
+            {servers.map(server => {
+              const tabCount = getTabCount(server.uuid);
+              return (
               <div key={server.uuid} className="glass-panel" style={{ padding: '1.5rem', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }} 
                    onClick={() => navigate(`/server/${server.uuid}`)}
                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
@@ -72,12 +84,17 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <p style={{ color: 'var(--text-secondary)', margin: 0, flex: 1 }}>{server.host}</p>
-                <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success-color)', fontSize: '0.9rem' }}>
+                <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--success-color)', fontSize: '0.9rem' }}>
                   <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--success-color)' }}></span>
                   Ready
+                  {tabCount > 0 && (
+                    <span style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-color)', padding: '0.25rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                      {tabCount} open tab{tabCount === 1 ? '' : 's'}
+                    </span>
+                  )}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </main>
